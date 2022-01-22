@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:pubsub="http://www.mulesoft.org/schema/mule/pubsub"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/pubsub http://www.mulesoft.org/schema/mule/pubsub/current/mule-pubsub.xsd">
+	
+	<pubsub:config name="GCP_Pub_Sub_Config" doc:name="Google Pub Sub Configuration" doc:id="c18251fd-c1f9-4993-a4f6-32ca5f1edb16" >
+		<pubsub:connection privateKeyId="${gcp.pvt_key_id}" clientId="${gcp.client_id}" clientEmail="${gcp.client_email}" >
+			<pubsub:private-key ><![CDATA[${gcp.pvt_key}]]></pubsub:private-key>
+		</pubsub:connection>
+	</pubsub:config>	
+
+    
+    <configuration-properties doc:name="Configuration properties" doc:id="27a9078e-c979-406a-938e-1bfc31544c28" file="config.yaml" doc:description="config.yaml"/>
+	<http:listener-config name="HTTP_Listener_8082" doc:name="HTTP Listener config" doc:id="ebe45b23-6c07-40a1-99fb-1a47723872cc" basePath="/api" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="7fa13886-077f-4f11-b196-ef55f084231b" >
+		<salesforce:basic-connection username="${sf.user}" password="${sf.password}" securityToken="${sf.security_token}" />
+	</salesforce:sfdc-config>	
+	
+	
+		<db:config name="mysql_localhost" doc:name="Database Config" doc:id="c2b31d16-aabc-4f12-a933-1685d77d3d97" >
+		<db:my-sql-connection host="${db.host}" port="${db.port}" user="${db.user}" password="${db.password}" database="${db.db_name}" />
+	</db:config>
+	<file:config name="File_Config_a_file_upload_dir" doc:name="File Config" doc:id="2b18e0d0-6bf6-4700-b079-1d20835d363a" doc:description="/Users/srangaswamy/Downloads/a_file_upload_dir">
+		<file:connection workingDir="${file.upload_dir}" />
+	</file:config>
+	<configuration doc:name="Configuration" doc:id="a1d958d6-3557-4c12-baaa-9f1dc044aaf4" defaultErrorHandler-ref="globalError_Handler" doc:description="Global Error Handler"/>
+	<error-handler name="globalError_Handler" doc:id="d63eb47d-833c-4f69-9a94-5ad6214abeb1" >
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="1df4ef98-c934-4b66-a017-f9bcd654e01f" type="ANY">
+			<ee:transform doc:name="Set error message description" doc:id="13b4c9f6-cb44-464e-bd8c-54bd6a4413a4" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": error.description
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+		</on-error-continue>
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="132413e7-a48d-459e-b87c-369138b4e940" type="SALESFORCE:INVALID_INPUT">
+			<ee:transform doc:name="Transform Message" doc:id="9f7d7905-8d7f-4552-af63-e79aba9996a3" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Invalid data to Salesforce. " ++ error.description as String
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+		</on-error-propagate>
+	</error-handler>
+	
+	
+</mule>

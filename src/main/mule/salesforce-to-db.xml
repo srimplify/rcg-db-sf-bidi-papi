@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:account-object-system-api="http://www.mulesoft.org/schema/mule/account-object-system-api" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/account-object-system-api http://www.mulesoft.org/schema/mule/account-object-system-api/current/mule-account-object-system-api.xsd">
+	<account-object-system-api:config name="Account_Object_System_API_Config" doc:name="Account Object System API Config" doc:id="95ee54aa-f3e9-43a8-91ec-4bf90d8ac759" property_host="localhost" property_port="8081" property_protocol="HTTP" property_basePath="/api" />
+	<flow name="salesforce-to-dbFlow" doc:id="f7497785-0c9c-461c-ae25-51b133f32096" >
+		<salesforce:subscribe-channel-listener doc:name="Subscribe channel listener" doc:id="a57d989b-e723-4a92-983c-5e11271deb4c" config-ref="Salesforce_Config" streamingChannel="/data/AccountChangeEvent"/>
+		<set-variable value="#[%dw 2.0 output app/json ---payload]" doc:name="Save Event" doc:id="bf3ef96c-9556-414f-930b-3703f3a2fdda" variableName="event"/>
+		<choice doc:name="Choice" doc:id="8847eafc-6d27-4e6e-9470-12dc2143a1cf" >
+			<when expression='#[(vars.event.data.payload.ChangeEventHeader.changeOrigin endsWith  "SfdcInternalAPI/") or vars.event.data.payload.ChangeEventHeader.changeType == "CREATE"]'>
+				<salesforce:query doc:name="Query" doc:id="c376a0d1-73ae-49b4-9b8c-9dad6522b807" config-ref="Salesforce_Config">
+					<salesforce:salesforce-query ><![CDATA[SELECT Id, AccountNumber, name, billingstreet, billingcity, billingstate, billingpostalcode, phone
+ from Account 
+where Id = ':id']]></salesforce:salesforce-query>
+					<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	"id" : payload.data.payload.ChangeEventHeader.recordIds[0]
+}]]]></salesforce:parameters>
+				</salesforce:query>
+				<logger level="INFO" doc:name="Logger" doc:id="a275b836-aa8c-4f36-a300-70105a029b0f" message="#[output app/json ---payload]"/>
+				<choice doc:name="Choice" doc:id="35a9ac4e-af28-40d7-bfd8-705e5d6e1449" >
+					<when expression='#[vars.event.data.payload.ChangeEventHeader.changeType == "CREATE"]'>
+						<ee:transform doc:name="Transform Message" doc:id="da3621b4-6d99-4d3e-a03a-8a5fd1a7b7bd" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	bill_city: payload01.BillingCity default "",
+	number: payload01.AccountNumber default "",
+	bill_zip: payload01.BillingPostalCode default "",
+	bill_street: payload01.BillingStreet default "",
+	phone: payload01.Phone default "",
+	name: payload01.Name default "",
+	id: payload01.Id default "",
+	bill_state: payload01.BillingState default ""
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<account-object-system-api:create-account doc:name="Create account" doc:id="c989b8bf-9fa9-4ae9-ac9b-6819688967c7" config-ref="Account_Object_System_API_Config"/>
+					</when>
+					<otherwise>
+						<ee:transform doc:name="Transform Message" doc:id="42385ff3-b17c-47f1-9e78-15b515df4ce6">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	bill_city: payload01.BillingCity default "",
+	number: payload01.AccountNumber default "",
+	bill_zip: payload01.BillingPostalCode default "",
+	bill_street: payload01.BillingStreet default "",
+	phone: payload01.Phone default "",
+	name: payload01.Name default "",
+	id: payload01.Id default "",
+	bill_state: payload01.BillingState default ""
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<account-object-system-api:update-accounts doc:name="Update accounts" doc:id="d3310fa8-a3ca-4fe3-847d-3149ef171391" config-ref="Account_Object_System_API_Config"/>
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="0502a608-b4cb-4454-b3e6-bcfbaca9538e" message='#["NO ACTION TAKEN"]'/>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="salesforce-to-dbFlow1" doc:id="7bf2eec1-5530-45dc-a388-e8dcf4a3937b">
+		<db:bulk-update doc:name="Bulk update Database" doc:id="535d49ec-757e-4403-af28-4d38794c6321" config-ref="mysql_localhost">
+					<db:sql><![CDATA[UPDATE sf_account SET
+
+sf_id = :Id,
+bill_street = :BillingStreet,
+bill_city = :BillingCity, 
+bill_state = :BillingState, 
+bill_zip = :BillingPostalCode, 
+phone = :Phone
+
+WHERE number = :AccountNumber]]></db:sql>
+				</db:bulk-update>
+		<db:bulk-insert doc:name="Bulk insert" doc:id="e76fe499-5ef1-4b6f-8e2d-a921fb206a7a" config-ref="mysql_localhost">
+							<db:sql><![CDATA[Insert into sf_account (sf_id, name, number, bill_street, bill_city, bill_state, bill_zip, phone)
+Values
+
+(:Id, :Name, :AccountNumber, :BillingStreet, :BillingCity, :BillingState, :BillingPostalCode, :Phone)]]></db:sql>
+						</db:bulk-insert>
+	</flow>
+</mule>

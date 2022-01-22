@@ -1,0 +1,21 @@
+sf:
+  user: ""
+  password: ""
+  security_token: ""
+  
+db:
+  user: "root"
+  password: ""
+  host: "localhost"
+  port: "3306"
+  db_name: "acme_test"
+  
+file:
+  upload_dir: "/Users/1234"
+  
+gcp:
+  pvt_key_id: "213"
+  client_id: ""
+  client_email: ""
+  pvt_key: ""
+  

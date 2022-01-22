@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="file-to-salesforceFlow" doc:id="ee55aa1e-be9c-4212-8ecb-c8ddbb4d26c3" >
+		<file:listener doc:name="On New or Updated File" doc:id="65f93a60-e7cc-44dd-b0e8-829ed458de51" config-ref="File_Config_a_file_upload_dir" directory="/Users/srangaswamy/Downloads/acme" recursive="false" moveToDirectory="/Users/srangaswamy/Downloads/a_file_upload_dir/success">
+			<scheduling-strategy >
+				<fixed-frequency frequency="10" timeUnit="DAYS"/>
+			</scheduling-strategy>
+			<file:matcher filenamePattern='*.csv'/>
+		</file:listener>
+		<ee:transform doc:name="Map data" doc:id="1aba4e59-8be7-4112-8714-9d44859c2402" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	Id: payload01.sf_id,
+	Name: payload01.name,
+	BillingStreet: payload01.street,
+	BillingCity: payload01.city,
+	BillingState: payload01.state,
+	BillingPostalCode: payload01.zip,
+	Phone: payload01.phone,
+	AccountNumber: payload01.number
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<try doc:name="Try" doc:id="1dc92c30-54ee-49bf-b3fa-5c23f6597b2d" >
+			<salesforce:upsert objectType="Account" externalIdFieldName="Id" doc:name="Upsert into Salesforce Account" doc:id="25c37213-fe2f-4c5b-9879-b51759f4b0a8" config-ref="Salesforce_Config" />
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="1ba48ea4-af53-4e8a-9b3e-cb2eb6c88f52" type="SALESFORCE:INVALID_RESPONSE">
+					<ee:transform doc:name="Transform Message" doc:id="0fb9a9de-eee8-4015-9e42-0c60f061a864" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="68c535e8-94eb-4d7a-b37a-de90f3c62de2" >
+				<logger level="INFO" doc:name="Logger" doc:id="89be886c-aebe-47a7-8204-eb6ca6cdd181" />
+			</on-error-continue>
+		</error-handler>
+	</flow>
+
+</mule>

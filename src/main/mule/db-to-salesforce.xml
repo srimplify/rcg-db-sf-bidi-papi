@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+	<flow name="on-db-change" doc:id="c07b3b84-ab89-488f-a5a5-beb4d2bca6ec" >
+		<db:listener table="SF_Account" doc:name="On Table Row" doc:id="14e67dfd-4d65-43b8-b94a-97f67f6209c9" config-ref="mysql_localhost" watermarkColumn="last_updated" idColumn="number">
+			<scheduling-strategy >
+				<fixed-frequency frequency="10000" />
+			</scheduling-strategy>
+		</db:listener>
+		<ee:transform doc:name="Transform Message" doc:id="40430ad5-fc63-4299-a488-daf54c1ac2b1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+
+output application/java
+
+---
+[{
+	Id: payload.sf_id,
+	Name: payload.name,
+	BillingStreet: payload.bill_street,
+	BillingCity: payload.bill_city,
+	BillingState: payload.bill_state,
+	BillingPostalCode: payload.bill_zip,
+	Phone: payload.phone,
+	AccountNumber: payload.number,
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:upsert objectType="Account" externalIdFieldName="Id" doc:name="Upsert into Salesforce Account" doc:id="ce709f9d-9f90-4036-8f04-148685174b49" config-ref="Salesforce_Config" />
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="d416e847-141b-4995-835c-7328336b34f3" type="SALESFORCE:LIMIT_EXCEEDED">
+				<ee:transform doc:name="Send error description" doc:id="f4805da3-0410-4d8c-a7d2-4c31659b8ee8" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+</mule>

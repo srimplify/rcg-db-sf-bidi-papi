@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<types:mule xmlns:types="http://www.mulesoft.org/schema/mule/types">
+  <types:catalog>
+    <types:type name="file_sf_account" format="json">
+      <types:shape format="weave" example="examples/acct.json"><![CDATA[%dw 2.0
+
+type file_sf_account = Array<{|  sf_id: String,   name: String,   number: String,   street: String,   city: String,   state: String,   zip: String,   phone: String|}> {"example": "[{\\\"sf_id\\\":\\\"0013i000004lRTXAA2\\\",\\\"name\\\":\\\"Xenon\\\",\\\"number\\\":\\\"A1234\\\",\\\"street\\\":\\\"3292 Redbull st\\\",\\\"city\\\":\\\"SFO\\\",\\\"state\\\":\\\"CA\\\",\\\"zip\\\":\\\"94116\\\",\\\"phone\\\":\\\"(415)930-3933\\\"}]"}
+
+]]></types:shape>
+    </types:type>
+  </types:catalog>
+  <types:enrichment select="#1aba4e59-8be7-4112-8714-9d44859c2402">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="file_sf_account"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+</types:mule>

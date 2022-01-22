@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:pubsub="http://www.mulesoft.org/schema/mule/pubsub"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/pubsub http://www.mulesoft.org/schema/mule/pubsub/current/mule-pubsub.xsd">
+	
+	
+<!-- 	<pubsub:config name="Google_Pub_Sub_Configuration" doc:name="Google Pub Sub Configuration" doc:id="84672516-81f8-4522-a315-945a116439fa" >
+		<pubsub:connection privateKeyId="${gcp.pvt_key_id}" clientId="${gcp.client_id}" clientEmail="${gcp.client_email}" >
+			<pubsub:private-key ><![CDATA[${gcp.pvt_key}]]></pubsub:private-key>
+		</pubsub:connection>
+	</pubsub:config> -->
+	
+	<flow name="Copy_of_file-to-salesforceFlow" doc:id="169c5e63-c05f-46d2-bf3a-8a663530a4f6" >
+		<file:listener doc:name="On New or Updated File" doc:id="037ce4cd-2837-4866-8db2-f456b4c9555d" config-ref="File_Config_a_file_upload_dir" directory="/Users/srangaswamy/Downloads/a_file_upload_dir" recursive="false" moveToDirectory="/Users/srangaswamy/Downloads/a_file_upload_dir/success" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="10" timeUnit="SECONDS" />
+			</scheduling-strategy>
+			<file:matcher filenamePattern="*.csv" />
+		</file:listener>
+		<ee:transform doc:name="Copy_of_Map data" doc:id="bc75ab3c-4972-411c-b910-62bee56c3a4c">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	Id: payload01.sf_id,
+	Name: payload01.name,
+	BillingStreet: payload01.street,
+	BillingCity: payload01.city,
+	BillingState: payload01.state,
+	BillingPostalCode: payload01.zip,
+	Phone: payload01.phone,
+	AccountNumber: payload01.number
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<foreach doc:name="For Each" doc:id="5099f94e-745b-4bc4-a966-d78d57c5d047" collection="#[payload]">
+			<choice doc:name="Choice" doc:id="5b547b5c-a73a-4bf5-a48b-c97c32b5704c" >
+				<when expression='#[payload.number != ""]'>
+					<logger level="INFO" doc:name="Logger" doc:id="265c786a-1676-4853-ac19-67cb7b91db24" message="#[[payload]]"/>
+					<ee:transform doc:name="Transform Message" doc:id="a4b5af4f-900d-4a7d-b806-b85f719e873d">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<pubsub:publish-message doc:name="Publish Message to GCP" doc:id="33f2c4da-7f31-43b2-847b-f4e2bf969bad" config-ref="GCP_Pub_Sub_Config" projectId="sinuous-moment-314407" topicName="rndc-demo1">
+						<pubsub:message><![CDATA[#[payload]]]></pubsub:message>
+					</pubsub:publish-message>
+				</when>
+				<otherwise >
+					<logger level="INFO" doc:name="Logger" doc:id="bc3bd201-4650-4c05-917b-7e70cf971f7d" message="field missing" />
+				</otherwise>
+			</choice>
+		</foreach>
+	</flow>
+	<flow name="GCP-PubSub-Listener" doc:id="f4516a44-69d4-4055-9613-8df72b9456c1" >
+		<pubsub:message-listener doc:name="On message listener_GCP" doc:id="f16c8775-e877-40d0-bdc9-fa4b786b1aa0" config-ref="GCP_Pub_Sub_Config" projectId="sinuous-moment-314407" subscriptionName="rndc-demo1-sub" />
+		<ee:transform doc:name="Transform Message" doc:id="48fb2370-6f36-4cc3-8a26-7381a580d62d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+
+output application/json
+
+---
+
+read (payload,"application/json")]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="6afa58f0-a1b1-4be9-92ab-a9d27d37df6d" message="#[payload]"/>
+		<ee:transform doc:name="Transform Message" doc:id="917f21b8-3fa4-4cac-8852-d8ae5f68561c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+[payload]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:upsert objectType="Account" externalIdFieldName="Id" doc:name="Upsert Account" doc:id="e9be47fb-f358-43f8-909a-1de008e89489" config-ref="Salesforce_Config">
+					</salesforce:upsert>
+	</flow>
+	
+	
+	</mule>
