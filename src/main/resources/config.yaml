@@ -1,21 +1,21 @@
 sf:
-  user: ""
-  password: ""
-  security_token: ""
+  user:
+  password: 
+  security_token: 
   
 db:
-  user: "root"
-  password: ""
-  host: "localhost"
-  port: "3306"
-  db_name: "acme_test"
+  user: 
+  password: 
+  host: 
+  port: 
+  db_name: 
   
 file:
-  upload_dir: "/Users/1234"
+  upload_dir: 
   
 gcp:
-  pvt_key_id: "213"
-  client_id: ""
-  client_email: ""
-  pvt_key: ""
+  pvt_key_id: 
+  client_id:
+  client_email: 
+  pvt_key: 
   
